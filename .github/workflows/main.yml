@@ -1,0 +1,73 @@
+name: Node.js CICD pipeline
+
+on:
+  push:
+    branches:
+      - test
+
+jobs:
+  lint:
+    runs-on: self-hosted
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Lint code
+      uses: actions/npm@v2
+      with:
+        args: lint
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: lint
+    if: success()
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Deploy to VM
+      # Use a custom action or an existing one to deploy your code to a VM
+      uses: dawidd6/action-ansible-playbook@v2
+      with:
+        # Required, playbook filepath
+        playbook: /home/bee/ansible/playbooks/copy-files.yml
+        # Optional, SSH private key
+        key: ${{secrets.SSH_PRIVATE_KEY}}
+        options: |
+          --inventory /home/bee/ansible/inventory/inventory.yml
+          --extra-vars ansible_user=root
+
+  test_on_vm:
+    runs-on: self-hosted
+    strategy:
+      matrix:
+        vm1: [VM1 IP Address or Hostname]
+        vm2: [VM2 IP Address or Hostname]
+        vm3: [VM3 IP Address or Hostname]
+    steps:
+      - name: Connect to VM
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ matrix.host }}
+          username: root
+          password: [Password for VM]
+          script: |
+            # Run test command on each VM
+            [Your Test Command Here]
+      - name: Collect test results
+        id: collect_test_results
+        uses: actions/upload-artifact@v1
+        with:
+          name: test-results-${{ matrix.host }}
+          path: [Path to Test Results]
+
+  email:
+    runs-on: self-hosted
+    needs: test_on_vm
+    if: success()
+
+    steps:
+    - name: Send email
+      # Use a custom action or an existing one to send an email notification
